@@ -32,28 +32,36 @@ const products = [
         description: "Durable and absorbent doormat to welcome guests."
     },
     {
-        id: 5,
-        name: "Memory Foam Pillow",
-        category: "pillows",
-        price: 49.99,
-        image: "images/pillow.jpg",
-        description: "Ergonomic memory foam pillow for better sleep."
-    },
-    {
-        id: 6,
-        name: "Silk Pillowcase",
-        category: "pillowcases",
-        price: 24.99,
-        image: "images/pillowcase.jpg",
-        description: "Smooth silk pillowcase to protect your hair and skin."
-    },
-    {
         id: 7,
         name: "Waterproof Mattress Protector",
         category: "mattress-protectors",
         price: 39.99,
         image: "images/mattress-protector.jpg",
         description: "Protect your mattress from spills and allergens."
+    },
+    {
+        id: 8,
+        name: "Mattress Protector 6x6",
+        category: "mattress-protectors",
+        price: 2200,
+        image: "images/mattress-6x6.jpg",
+        description: "Mattress protectors available in all sizes. Colours: white, grey, navy blue and sky blue."
+    },
+    {
+        id: 9,
+        name: "Mattress Protector 5x6",
+        category: "mattress-protectors",
+        price: 2000,
+        image: "images/mattress-5x6.jpg",
+        description: "Mattress protectors available in all sizes. Colours: white, navy blue, grey, maroon and purple."
+    },
+    {
+        id: 10,
+        name: "Mattress Protector 4x6",
+        category: "mattress-protectors",
+        price: 1800,
+        image: "images/mattress-4x6.jpg",
+        description: "Mattress protectors available in all sizes. Colours: sky blue, white, grey, purple and navy blue."
     },
     // Add more products as needed
 ];
