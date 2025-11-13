@@ -71,6 +71,45 @@ function initializeDatabase() {
             console.log('Contact messages table ready.');
         }
     });
+
+    // Create users table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating users table:', err.message);
+        } else {
+            console.log('Users table ready.');
+        }
+    });
+
+    // Create orders table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT NOT NULL,
+            customer_email TEXT NOT NULL,
+            customer_phone TEXT NOT NULL,
+            delivery_address TEXT NOT NULL,
+            payment_method TEXT NOT NULL,
+            order_items TEXT NOT NULL, -- JSON string of cart items
+            total_amount REAL NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating orders table:', err.message);
+        } else {
+            console.log('Orders table ready.');
+        }
+    });
 }
 
 // Seed initial products
@@ -324,6 +363,55 @@ const databaseOperations = {
             [name, email, message],
             function(err) {
                 callback(err, { id: this.lastID });
+            }
+        );
+    },
+
+    // User operations
+    createUser: (name, email, hashedPassword, callback) => {
+        db.run(
+            "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+            [name, email, hashedPassword],
+            function(err) {
+                callback(err, { id: this.lastID });
+            }
+        );
+    },
+
+    getUserByEmail: (email, callback) => {
+        db.get("SELECT * FROM users WHERE email = ?", [email], callback);
+    },
+
+    getUserById: (id, callback) => {
+        db.get("SELECT id, name, email, created_at FROM users WHERE id = ?", [id], callback);
+    },
+
+    // Order operations
+    createOrder: (orderData, callback) => {
+        const { customer_name, customer_email, customer_phone, delivery_address, payment_method, order_items, total_amount } = orderData;
+        db.run(
+            "INSERT INTO orders (customer_name, customer_email, customer_phone, delivery_address, payment_method, order_items, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [customer_name, customer_email, customer_phone, delivery_address, payment_method, JSON.stringify(order_items), total_amount],
+            function(err) {
+                callback(err, { id: this.lastID });
+            }
+        );
+    },
+
+    getAllOrders: (callback) => {
+        db.all("SELECT * FROM orders ORDER BY created_at DESC", callback);
+    },
+
+    getOrderById: (id, callback) => {
+        db.get("SELECT * FROM orders WHERE id = ?", [id], callback);
+    },
+
+    updateOrderStatus: (id, status, callback) => {
+        db.run(
+            "UPDATE orders SET status = ? WHERE id = ?",
+            [status, id],
+            function(err) {
+                callback(err, { changes: this.changes });
             }
         );
     }

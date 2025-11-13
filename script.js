@@ -31,6 +31,98 @@ const API_BASE_URL = 'http://localhost:3001/api';
 let sessionId = localStorage.getItem('sessionId') || generateSessionId();
 localStorage.setItem('sessionId', sessionId);
 
+// User authentication state
+let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+let userSessionId = localStorage.getItem('userSessionId') || null;
+
+// Check if user is authenticated
+function isAuthenticated() {
+    return currentUser !== null && userSessionId !== null;
+}
+
+// Protect routes - redirect to login if not authenticated
+function protectRoute() {
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+
+    // Allow access to signup and login pages without authentication
+    const publicPages = ['signup.html', 'login.html'];
+
+    if (!isAuthenticated() && !publicPages.includes(currentPage)) {
+        // Store current page for redirect after login
+        sessionStorage.setItem('redirectAfterLogin', window.location.href);
+        window.location.href = 'login.html';
+        return false;
+    }
+
+    return true;
+}
+
+// Update navigation based on authentication state
+function updateNavigation() {
+    const nav = document.querySelector('nav ul');
+    if (!nav) return;
+
+    // Remove existing auth links
+    const existingAuthLinks = nav.querySelectorAll('li a[href*="signup"], li a[href*="login"], li.logout-link');
+    existingAuthLinks.forEach(link => link.parentElement.remove());
+
+    if (currentUser) {
+        // User is logged in - show logout
+        const logoutLi = document.createElement('li');
+        logoutLi.innerHTML = '<a href="#" class="logout-link">Logout</a>';
+        nav.appendChild(logoutLi);
+
+        // Add logout event listener
+        logoutLi.querySelector('.logout-link').addEventListener('click', function(e) {
+            e.preventDefault();
+            logout();
+        });
+    } else {
+        // User is not logged in - show signup/login
+        const signupLi = document.createElement('li');
+        signupLi.innerHTML = '<a href="signup.html">Sign Up</a>';
+        nav.appendChild(signupLi);
+
+        const loginLi = document.createElement('li');
+        loginLi.innerHTML = '<a href="login.html">Login</a>';
+        nav.appendChild(loginLi);
+    }
+}
+
+// Protect navigation links
+function protectNavigationLinks() {
+    const navLinks = document.querySelectorAll('nav a');
+
+    navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+
+        // Skip signup and login links
+        if (href && (href.includes('signup.html') || href.includes('login.html') || href.includes('#'))) {
+            return;
+        }
+
+        link.addEventListener('click', function(e) {
+            if (!isAuthenticated()) {
+                e.preventDefault();
+                // Store current page for redirect after login
+                sessionStorage.setItem('redirectAfterLogin', window.location.href);
+                window.location.href = 'login.html';
+            }
+        });
+    });
+}
+
+// Logout function
+function logout() {
+    localStorage.removeItem('user');
+    localStorage.removeItem('userSessionId');
+    currentUser = null;
+    userSessionId = null;
+    updateNavigation();
+    alert('Logged out successfully!');
+    window.location.href = 'index.html';
+}
+
 function generateSessionId() {
     return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
@@ -159,6 +251,17 @@ async function renderFeaturedProducts() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize authentication state
+    updateNavigation();
+
+    // Protect routes on page load
+    if (!protectRoute()) {
+        return; // Stop execution if redirected to login
+    }
+
+    // Protect navigation links
+    protectNavigationLinks();
+
     await updateCartCount();
 
     // Product filtering
@@ -217,6 +320,176 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
+    // Signup form submission
+    const signupForm = document.getElementById('signup-form');
+    if (signupForm) {
+        signupForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Clear previous errors
+            document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+
+            const formData = new FormData(signupForm);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                confirmPassword: formData.get('confirm-password')
+            };
+
+            // Client-side validation
+            let isValid = true;
+
+            if (data.name.length < 2) {
+                document.getElementById('name-error').textContent = 'Name must be at least 2 characters';
+                isValid = false;
+            }
+
+            if (!data.email.includes('@')) {
+                document.getElementById('email-error').textContent = 'Please enter a valid email';
+                isValid = false;
+            }
+
+            if (data.password.length < 6) {
+                document.getElementById('password-error').textContent = 'Password must be at least 6 characters';
+                isValid = false;
+            }
+
+            if (data.password !== data.confirmPassword) {
+                document.getElementById('confirm-password-error').textContent = 'Passwords do not match';
+                isValid = false;
+            }
+
+            if (!isValid) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: data.name,
+                        email: data.email,
+                        password: data.password
+                    }),
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('Account created successfully! Please login.');
+                    window.location.href = 'login.html';
+                } else {
+                    if (result.error.includes('email')) {
+                        document.getElementById('email-error').textContent = result.error;
+                    } else {
+                        alert(result.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error signing up:', error);
+                alert('Failed to create account. Please try again.');
+            }
+        });
+    }
+
+    // Forgot password link
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            if (!email || !email.includes('@')) {
+                alert('Please enter a valid email address first.');
+                return;
+            }
+
+            if (confirm(`Send password reset email to ${email}?`)) {
+                fetch(`${API_BASE_URL}/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email }),
+                })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.message || 'Password reset email sent!');
+                })
+                .catch(error => {
+                    console.error('Error sending reset email:', error);
+                    alert('Failed to send reset email. Please try again.');
+                });
+            }
+        });
+    }
+
+    // Login form submission
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Clear previous errors
+            document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+
+            const formData = new FormData(loginForm);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+
+            // Client-side validation
+            let isValid = true;
+
+            if (!data.email.includes('@')) {
+                document.getElementById('email-error').textContent = 'Please enter a valid email';
+                isValid = false;
+            }
+
+            if (data.password.length < 1) {
+                document.getElementById('password-error').textContent = 'Password is required';
+                isValid = false;
+            }
+
+            if (!isValid) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Store user session
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                    localStorage.setItem('userSessionId', result.sessionId);
+                    currentUser = result.user;
+                    userSessionId = result.sessionId;
+                    alert('Login successful!');
+
+                    // Redirect to stored page or home
+                    const redirectTo = sessionStorage.getItem('redirectAfterLogin') || 'index.html';
+                    sessionStorage.removeItem('redirectAfterLogin');
+                    window.location.href = redirectTo;
+                } else {
+                    if (result.error.includes('email') || result.error.includes('password')) {
+                        document.getElementById('email-error').textContent = result.error;
+                    } else {
+                        alert(result.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error logging in:', error);
+                alert('Failed to login. Please try again.');
+            }
+        });
+    }
+
     // Checkout form submission
     const checkoutForm = document.getElementById('checkout-form');
     if (checkoutForm) {
@@ -224,22 +497,33 @@ document.addEventListener('DOMContentLoaded', async function() {
             e.preventDefault();
             const formData = new FormData(checkoutForm);
             const data = {
-                name: formData.get('name'),
-                email: formData.get('email'),
-                phone: formData.get('phone'),
-                address: formData.get('address'),
-                payment: formData.get('payment')
+                customer_name: formData.get('name'),
+                customer_email: formData.get('email'),
+                customer_phone: formData.get('phone'),
+                delivery_address: formData.get('address'),
+                payment_method: formData.get('payment'),
+                sessionId: sessionId
             };
 
             try {
-                // Here you would typically send the order data to your backend
-                // For now, we'll just show a success message
-                alert('Order placed successfully! We will contact you soon.');
-                // Clear cart after successful order
-                await fetch(`${API_BASE_URL}/cart/${sessionId}`, {
-                    method: 'DELETE',
+                const response = await fetch(`${API_BASE_URL}/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
                 });
-                window.location.href = 'index.html';
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message);
+                    // Update cart count after clearing cart
+                    updateCartCount();
+                    window.location.href = 'index.html';
+                } else {
+                    alert(result.error || 'Failed to place order. Please try again.');
+                }
             } catch (error) {
                 console.error('Error placing order:', error);
                 alert('Failed to place order. Please try again.');

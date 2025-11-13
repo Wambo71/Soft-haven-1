@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soft Haven - Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 20px;
+        }
+
+        .admin-tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #eee;
+        }
+
+        .admin-tab {
+            padding: 1rem 2rem;
+            background: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .admin-tab.active {
+            background: white;
+            border-bottom-color: #3498db;
+            color: #3498db;
+        }
+
+        .admin-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-processing {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+
+        .btn-processing {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-completed {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-cancelled {
+            background: #dc3545;
+            color: white;
+        }
+
+        .order-items {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .order-items ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+
+        .order-items li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Soft Haven - Admin Dashboard</h1>
+            <nav>
+                <ul>
+                    <li><a href="index.html">Back to Store</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="admin-container">
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="showTab('orders')">Orders</button>
+                <button class="admin-tab" onclick="showTab('messages')">Contact Messages</button>
+            </div>
+
+            <div class="admin-content">
+                <div id="orders-tab" class="tab-content">
+                    <h2>Order Management</h2>
+                    <div id="orders-list">
+                        <p>Loading orders...</p>
+                    </div>
+                </div>
+
+                <div id="messages-tab" class="tab-content" style="display: none;">
+                    <h2>Contact Messages</h2>
+                    <div id="messages-list">
+                        <p>Loading messages...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2023 Soft Haven. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3001/api';
+        const ADMIN_KEY = 'admin123'; // Change this to a secure key
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+
+            // Remove active class from all tabs
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            event.target.classList.add('active');
+
+            // Load data for selected tab
+            if (tabName === 'orders') {
+                loadOrders();
+            } else if (tabName === 'messages') {
+                loadMessages();
+            }
+        }
+
+        async function loadOrders() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/orders`, {
+                    headers: {
+                        'x-admin-key': ADMIN_KEY
+                    }
+                });
+
+                if (response.ok) {
+                    const orders = await response.json();
+                    displayOrders(orders);
+                } else {
+                    document.getElementById('orders-list').innerHTML = '<p>Failed to load orders</p>';
+                }
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('orders-list').innerHTML = '<p>Error loading orders</p>';
+            }
+        }
+
+        async function loadMessages() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/contact-messages`, {
+                    headers: {
+                        'x-admin-key': ADMIN_KEY
+                    }
+                });
+
+                if (response.ok) {
+                    const messages = await response.json();
+                    displayMessages(messages);
+                } else {
+                    document.getElementById('messages-list').innerHTML = '<p>Failed to load messages</p>';
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                document.getElementById('messages-list').innerHTML = '<p>Error loading messages</p>';
+            }
+        }
+
+        function displayOrders(orders) {
+            if (orders.length === 0) {
+                document.getElementById('orders-list').innerHTML = '<p>No orders found</p>';
+                return;
+            }
+
+            const html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(order => {
+                            const items = JSON.parse(order.order_items);
+                            const itemsHtml = items.map(item => `${item.name} x ${item.quantity}`).join(', ');
+                            const statusClass = `status-${order.status}`;
+
+                            return `
+                                <tr>
+                                    <td>#${order.id}</td>
+                                    <td>
+                                        <strong>${order.customer_name}</strong><br>
+                                        ${order.customer_email}<br>
+                                        ${order.customer_phone}
+                                    </td>
+                                    <td>${itemsHtml}</td>
+                                    <td>KSH ${order.total_amount}</td>
+                                    <td><span class="status-badge ${statusClass}">${order.status}</span></td>
+                                    <td>${new Date(order.created_at).toLocaleDateString()}</td>
+                                    <td>
+                                        <button class="action-btn btn-processing" onclick="updateOrderStatus(${order.id}, 'processing')">Processing</button>
+                                        <button class="action-btn btn-completed" onclick="updateOrderStatus(${order.id}, 'completed')">Completed</button>
+                                        <button class="action-btn btn-cancelled" onclick="updateOrderStatus(${order.id}, 'cancelled')">Cancel</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('orders-list').innerHTML = html;
+        }
+
+        function displayMessages(messages) {
+            if (messages.length === 0) {
+                document.getElementById('messages-list').innerHTML = '<p>No messages found</p>';
+                return;
+            }
+
+            const html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Message</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${messages.map(message => `
+                            <tr>
+                                <td>${message.id}</td>
+                                <td>${message.name}</td>
+                                <td>${message.email}</td>
+                                <td>${message.message}</td>
+                                <td>${new Date(message.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('messages-list').innerHTML = html;
+        }
+
+        async function updateOrderStatus(orderId, status) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-key': ADMIN_KEY
+                    },
+                    body: JSON.stringify({ status })
+                });
+
+                if (response.ok) {
+                    alert('Order status updated successfully!');
+                    loadOrders(); // Reload orders
+                } else {
+                    alert('Failed to update order status');
+                }
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                alert('Error updating order status');
+            }
+        }
+
+        // Load orders on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOrders();
+        });
+    </script>
+</body>
+</html>
