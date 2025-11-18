@@ -25,8 +25,8 @@ function createCartItem(item) {
     `;
 }
 
-// API base URL
-const API_BASE_URL = 'http://localhost:3001/api';
+// API base URL - dynamically uses current domain
+const API_BASE_URL = window.location.origin + '/api';
 // Cart functionality - now uses API
 let sessionId = localStorage.getItem('sessionId') || generateSessionId();
 localStorage.setItem('sessionId', sessionId);

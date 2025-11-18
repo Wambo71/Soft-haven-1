@@ -62,6 +62,7 @@ function initializeDatabase() {
             name TEXT NOT NULL,
             email TEXT NOT NULL,
             message TEXT NOT NULL,
+            status TEXT DEFAULT 'unread',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `, (err) => {
@@ -69,6 +70,24 @@ function initializeDatabase() {
             console.error('Error creating contact_messages table:', err.message);
         } else {
             console.log('Contact messages table ready.');
+        }
+    });
+
+    // Create message_replies table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS message_replies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER NOT NULL,
+            reply_text TEXT NOT NULL,
+            is_from_admin BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (message_id) REFERENCES contact_messages (id)
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating message_replies table:', err.message);
+        } else {
+            console.log('Message replies table ready.');
         }
     });
 
@@ -365,6 +384,49 @@ const databaseOperations = {
                 callback(err, { id: this.lastID });
             }
         );
+    },
+
+    updateMessageStatus: (id, status, callback) => {
+        db.run(
+            "UPDATE contact_messages SET status = ? WHERE id = ?",
+            [status, id],
+            function(err) {
+                callback(err, { changes: this.changes });
+            }
+        );
+    },
+
+    // Reply operations
+    saveReply: (messageId, replyText, isFromAdmin, callback) => {
+        db.run(
+            "INSERT INTO message_replies (message_id, reply_text, is_from_admin) VALUES (?, ?, ?)",
+            [messageId, replyText, isFromAdmin],
+            function(err) {
+                callback(err, { id: this.lastID });
+            }
+        );
+    },
+
+    getMessageWithReplies: (messageId, callback) => {
+        const query = `
+            SELECT cm.*, mr.id as reply_id, mr.reply_text, mr.is_from_admin, mr.created_at as reply_created_at
+            FROM contact_messages cm
+            LEFT JOIN message_replies mr ON cm.id = mr.message_id
+            WHERE cm.id = ?
+            ORDER BY mr.created_at ASC
+        `;
+        db.all(query, [messageId], callback);
+    },
+
+    getAllMessagesWithReplies: (callback) => {
+        const query = `
+            SELECT cm.*,
+                   (SELECT COUNT(*) FROM message_replies WHERE message_id = cm.id) as reply_count,
+                   (SELECT reply_text FROM message_replies WHERE message_id = cm.id ORDER BY created_at DESC LIMIT 1) as last_reply
+            FROM contact_messages cm
+            ORDER BY cm.created_at DESC
+        `;
+        db.all(query, callback);
     },
 
     // User operations

@@ -12,14 +12,15 @@ const PORT = process.env.PORT || 3001;
 const emailTransporter = nodemailer.createTransport({
     service: 'gmail', // You can change this to your email provider
     auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com', // Set your email
-        pass: process.env.EMAIL_PASS || 'your-app-password' // Set your app password
+        user: process.env.EMAIL_USER || 'softhavenb@gmail.com', // Set your email
+        pass: process.env.EMAIL_PASS || 'kanaxympnxzaqati' // Set your app password
     }
 });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
 // Products data is now handled by the database
@@ -156,27 +157,25 @@ app.post('/api/contact', async (req, res) => {
             console.error('Error saving contact message:', err);
             res.status(500).json({ error: 'Failed to save contact message' });
         } else {
-            // Send email notification to seller
-            try {
-                await emailTransporter.sendMail({
-                    from: process.env.EMAIL_USER || 'your-email@gmail.com',
-                    to: process.env.SELLER_EMAIL || 'seller@example.com', // Set your seller email
-                    subject: 'New Contact Message - Soft Haven',
-                    html: `
-                        <h2>New Contact Message Received</h2>
-                        <p><strong>From:</strong> ${name}</p>
-                        <p><strong>Email:</strong> ${email}</p>
-                        <p><strong>Message:</strong></p>
-                        <p>${message}</p>
-                        <hr>
-                        <p><em>Received at: ${new Date().toLocaleString()}</em></p>
-                    `
-                });
+            // Send email notification to seller (non-blocking)
+            emailTransporter.sendMail({
+                from: process.env.EMAIL_USER || 'your-email@gmail.com',
+                to: process.env.SELLER_EMAIL || 'seller@example.com', // Set your seller email
+                subject: 'New Contact Message - Soft Haven',
+                html: `
+                    <h2>New Contact Message Received</h2>
+                    <p><strong>From:</strong> ${name}</p>
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Message:</strong></p>
+                    <p>${message}</p>
+                    <hr>
+                    <p><em>Received at: ${new Date().toLocaleString()}</em></p>
+                `
+            }).then(() => {
                 console.log('Contact notification email sent successfully');
-            } catch (emailError) {
+            }).catch((emailError) => {
                 console.error('Error sending contact notification email:', emailError);
-                // Don't fail the request if email fails
-            }
+            });
 
             res.json({ success: true, message: 'Thank you for your message! We will get back to you soon.' });
         }
@@ -368,59 +367,61 @@ app.post('/api/orders', async (req, res) => {
                     return res.status(500).json({ error: 'Failed to create order' });
                 }
 
-                // Send email notification to seller
-                try {
-                    const orderItemsHtml = cartItems.map(item =>
-                        `<li>${item.name} x ${item.quantity} - KSH ${item.price * item.quantity}</li>`
-                    ).join('');
+                // Send email notifications (non-blocking)
+                const orderItemsHtml = cartItems.map(item =>
+                    `<li>${item.name} x ${item.quantity} - KSH ${item.price * item.quantity}</li>`
+                ).join('');
 
-                    await emailTransporter.sendMail({
-                        from: process.env.EMAIL_USER || 'your-email@gmail.com',
-                        to: process.env.SELLER_EMAIL || 'seller@example.com',
-                        subject: 'New Order Received - Soft Haven',
-                        html: `
-                            <h2>New Order Received!</h2>
-                            <h3>Order #${result.id}</h3>
-                            <p><strong>Customer:</strong> ${customer_name}</p>
-                            <p><strong>Email:</strong> ${customer_email}</p>
-                            <p><strong>Phone:</strong> ${customer_phone}</p>
-                            <p><strong>Delivery Address:</strong> ${delivery_address}</p>
-                            <p><strong>Payment Method:</strong> ${payment_method}</p>
-                            <h4>Order Items:</h4>
-                            <ul>${orderItemsHtml}</ul>
-                            <p><strong>Total Amount: KSH ${totalAmount}</strong></p>
-                            <hr>
-                            <p><em>Order placed at: ${new Date().toLocaleString()}</em></p>
-                        `
-                    });
+                // Send email to seller
+                emailTransporter.sendMail({
+                    from: process.env.EMAIL_USER || 'your-email@gmail.com',
+                    to: process.env.SELLER_EMAIL || 'seller@example.com',
+                    subject: 'New Order Received - Soft Haven',
+                    html: `
+                        <h2>New Order Received!</h2>
+                        <h3>Order #${result.id}</h3>
+                        <p><strong>Customer:</strong> ${customer_name}</p>
+                        <p><strong>Email:</strong> ${customer_email}</p>
+                        <p><strong>Phone:</strong> ${customer_phone}</p>
+                        <p><strong>Delivery Address:</strong> ${delivery_address}</p>
+                        <p><strong>Payment Method:</strong> ${payment_method}</p>
+                        <h4>Order Items:</h4>
+                        <ul>${orderItemsHtml}</ul>
+                        <p><strong>Total Amount: KSH ${totalAmount}</strong></p>
+                        <hr>
+                        <p><em>Order placed at: ${new Date().toLocaleString()}</em></p>
+                    `
+                }).then(() => {
+                    console.log('Order notification email sent to seller successfully');
+                }).catch((emailError) => {
+                    console.error('Error sending order notification email to seller:', emailError);
+                });
 
-                    // Send confirmation email to customer
-                    await emailTransporter.sendMail({
-                        from: process.env.EMAIL_USER || 'your-email@gmail.com',
-                        to: customer_email,
-                        subject: 'Order Confirmation - Soft Haven',
-                        html: `
-                            <h2>Thank you for your order!</h2>
-                            <p>Dear ${customer_name},</p>
-                            <p>Your order has been received successfully. Here are the details:</p>
-                            <h3>Order #${result.id}</h3>
-                            <h4>Order Items:</h4>
-                            <ul>${orderItemsHtml}</ul>
-                            <p><strong>Total Amount: KSH ${totalAmount}</strong></p>
-                            <p><strong>Delivery Address:</strong> ${delivery_address}</p>
-                            <p><strong>Payment Method:</strong> ${payment_method}</p>
-                            <p>We will contact you soon regarding delivery arrangements.</p>
-                            <p>Thank you for shopping with Soft Haven!</p>
-                            <hr>
-                            <p><em>Order placed at: ${new Date().toLocaleString()}</em></p>
-                        `
-                    });
-
-                    console.log('Order notification emails sent successfully');
-                } catch (emailError) {
-                    console.error('Error sending order notification emails:', emailError);
-                    // Don't fail the request if email fails
-                }
+                // Send confirmation email to customer
+                emailTransporter.sendMail({
+                    from: process.env.EMAIL_USER || 'your-email@gmail.com',
+                    to: customer_email,
+                    subject: 'Order Confirmation - Soft Haven',
+                    html: `
+                        <h2>Thank you for your order!</h2>
+                        <p>Dear ${customer_name},</p>
+                        <p>Your order has been received successfully. Here are the details:</p>
+                        <h3>Order #${result.id}</h3>
+                        <h4>Order Items:</h4>
+                        <ul>${orderItemsHtml}</ul>
+                        <p><strong>Total Amount: KSH ${totalAmount}</strong></p>
+                        <p><strong>Delivery Address:</strong> ${delivery_address}</p>
+                        <p><strong>Payment Method:</strong> ${payment_method}</p>
+                        <p>We will contact you soon regarding delivery arrangements.</p>
+                        <p>Thank you for shopping with Soft Haven!</p>
+                        <hr>
+                        <p><em>Order placed at: ${new Date().toLocaleString()}</em></p>
+                    `
+                }).then(() => {
+                    console.log('Order confirmation email sent to customer successfully');
+                }).catch((emailError) => {
+                    console.error('Error sending order confirmation email to customer:', emailError);
+                });
 
                 // Clear cart after successful order
                 databaseOperations.clearCart(sessionId, (err, clearResult) => {
@@ -467,7 +468,7 @@ app.get('/api/admin/contact-messages', (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    db.all("SELECT * FROM contact_messages ORDER BY created_at DESC", (err, messages) => {
+    databaseOperations.getAllMessagesWithReplies((err, messages) => {
         if (err) {
             console.error('Error fetching contact messages:', err);
             return res.status(500).json({ error: 'Failed to fetch messages' });
@@ -475,6 +476,105 @@ app.get('/api/admin/contact-messages', (req, res) => {
 
         res.json(messages);
     });
+});
+
+app.get('/api/admin/contact-messages/:id', (req, res) => {
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    databaseOperations.getMessageWithReplies(id, (err, messages) => {
+        if (err) {
+            console.error('Error fetching message details:', err);
+            return res.status(500).json({ error: 'Failed to fetch message details' });
+        }
+
+        res.json(messages);
+    });
+});
+
+app.post('/api/admin/contact-messages/:id/reply', async (req, res) => {
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { replyText } = req.body;
+
+    if (!replyText || replyText.trim() === '') {
+        return res.status(400).json({ error: 'Reply text is required' });
+    }
+
+    try {
+        // Get the original message
+        databaseOperations.getMessageWithReplies(id, async (err, messageData) => {
+            if (err) {
+                console.error('Error fetching message:', err);
+                return res.status(500).json({ error: 'Failed to fetch message' });
+            }
+
+            if (!messageData || messageData.length === 0) {
+                return res.status(404).json({ error: 'Message not found' });
+            }
+
+            const originalMessage = messageData[0];
+
+            // Save the reply
+            databaseOperations.saveReply(id, replyText, true, async (err, result) => {
+                if (err) {
+                    console.error('Error saving reply:', err);
+                    return res.status(500).json({ error: 'Failed to save reply' });
+                }
+
+                // Update message status to replied
+                databaseOperations.updateMessageStatus(id, 'replied', (err, updateResult) => {
+                    if (err) {
+                        console.error('Error updating message status:', err);
+                    }
+                });
+
+                // Send email notification to customer (non-blocking)
+                emailTransporter.sendMail({
+                    from: process.env.EMAIL_USER || 'your-email@gmail.com',
+                    to: originalMessage.email,
+                    subject: 'Reply to your message - Soft Haven',
+                    html: `
+                        <h2>Reply from Soft Haven</h2>
+                        <p>Dear ${originalMessage.name},</p>
+                        <p>We have received your message and here's our response:</p>
+                        <div style="background-color: #f5f5f5; padding: 15px; margin: 15px 0; border-left: 4px solid #007bff;">
+                            <p><strong>Your original message:</strong></p>
+                            <p>${originalMessage.message}</p>
+                        </div>
+                        <div style="background-color: #e8f5e8; padding: 15px; margin: 15px 0; border-left: 4px solid #28a745;">
+                            <p><strong>Our reply:</strong></p>
+                            <p>${replyText}</p>
+                        </div>
+                        <p>If you have any further questions, please don't hesitate to contact us.</p>
+                        <p>Best regards,<br>Soft Haven Team</p>
+                        <hr>
+                        <p><em>This is an automated response to your inquiry.</em></p>
+                    `
+                }).then(() => {
+                    console.log('Reply notification email sent to customer successfully');
+                }).catch((emailError) => {
+                    console.error('Error sending reply notification email:', emailError);
+                });
+
+                res.json({
+                    success: true,
+                    message: 'Reply sent successfully',
+                    replyId: result.id
+                });
+            });
+        });
+    } catch (error) {
+        console.error('Reply error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.put('/api/admin/orders/:id/status', (req, res) => {

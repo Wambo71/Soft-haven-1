@@ -125,6 +125,89 @@
         .order-items li {
             margin-bottom: 0.5rem;
         }
+
+        .message-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-unread {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status-read {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .status-replied {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .reply-btn {
+            background: #2196f3;
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .reply-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .reply-modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .conversation-thread {
+            margin-bottom: 2rem;
+        }
+
+        .message-bubble {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .customer-message {
+            background: #e3f2fd;
+            margin-right: 20%;
+        }
+
+        .admin-message {
+            background: #e8f5e8;
+            margin-left: 20%;
+        }
+
+        .reply-form textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +244,23 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Reply Modal -->
+            <div id="reply-modal" class="reply-modal">
+                <div class="reply-modal-content">
+                    <h2>Message Conversation</h2>
+                    <div id="conversation-thread" class="conversation-thread">
+                        <!-- Conversation will be loaded here -->
+                    </div>
+                    <div class="reply-form">
+                        <h3>Send Reply</h3>
+                        <textarea id="reply-text" placeholder="Type your reply here..."></textarea>
+                        <button class="action-btn btn-completed" onclick="sendReply()">Send Reply</button>
+                        <button class="action-btn btn-cancelled" onclick="closeReplyModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            </div>
         </div>
     </main>
 
@@ -171,7 +271,7 @@
     </footer>
 
     <script>
-        const API_BASE_URL = 'http://localhost:3001/api';
+        const API_BASE_URL = window.location.origin + '/api';
         const ADMIN_KEY = 'admin123'; // Change this to a secure key
 
         function showTab(tabName) {
@@ -303,19 +403,31 @@
                             <th>Name</th>
                             <th>Email</th>
                             <th>Message</th>
+                            <th>Status</th>
+                            <th>Replies</th>
                             <th>Date</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${messages.map(message => `
-                            <tr>
-                                <td>${message.id}</td>
-                                <td>${message.name}</td>
-                                <td>${message.email}</td>
-                                <td>${message.message}</td>
-                                <td>${new Date(message.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
+                        ${messages.map(message => {
+                            const statusClass = `status-${message.status || 'unread'}`;
+                            const replyCount = message.reply_count || 0;
+                            return `
+                                <tr>
+                                    <td>${message.id}</td>
+                                    <td>${message.name}</td>
+                                    <td>${message.email}</td>
+                                    <td>${message.message.length > 50 ? message.message.substring(0, 50) + '...' : message.message}</td>
+                                    <td><span class="message-status ${statusClass}">${message.status || 'unread'}</span></td>
+                                    <td>${replyCount}</td>
+                                    <td>${new Date(message.created_at).toLocaleDateString()}</td>
+                                    <td>
+                                        <button class="reply-btn" onclick="openReplyModal(${message.id})">View & Reply</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
@@ -343,6 +455,113 @@
             } catch (error) {
                 console.error('Error updating order status:', error);
                 alert('Error updating order status');
+            }
+        }
+
+        let currentMessageId = null;
+
+        function openReplyModal(messageId) {
+            currentMessageId = messageId;
+            loadMessageConversation(messageId);
+            document.getElementById('reply-modal').style.display = 'block';
+        }
+
+        function closeReplyModal() {
+            document.getElementById('reply-modal').style.display = 'none';
+            document.getElementById('reply-text').value = '';
+            currentMessageId = null;
+        }
+
+        async function loadMessageConversation(messageId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/contact-messages/${messageId}`, {
+                    headers: {
+                        'x-admin-key': ADMIN_KEY
+                    }
+                });
+
+                if (response.ok) {
+                    const conversation = await response.json();
+                    displayConversation(conversation);
+                } else {
+                    document.getElementById('conversation-thread').innerHTML = '<p>Failed to load conversation</p>';
+                }
+            } catch (error) {
+                console.error('Error loading conversation:', error);
+                document.getElementById('conversation-thread').innerHTML = '<p>Error loading conversation</p>';
+            }
+        }
+
+        function displayConversation(conversation) {
+            if (!conversation || conversation.length === 0) {
+                document.getElementById('conversation-thread').innerHTML = '<p>No conversation found</p>';
+                return;
+            }
+
+            // Group messages and replies
+            const originalMessage = conversation.find(item => !item.reply_id);
+            const replies = conversation.filter(item => item.reply_id);
+
+            let html = '';
+
+            // Original customer message
+            if (originalMessage) {
+                html += `
+                    <div class="message-bubble customer-message">
+                        <strong>From: ${originalMessage.name} (${originalMessage.email})</strong><br>
+                        <small>${new Date(originalMessage.created_at).toLocaleString()}</small><br><br>
+                        ${originalMessage.message}
+                    </div>
+                `;
+            }
+
+            // Admin replies
+            replies.forEach(reply => {
+                html += `
+                    <div class="message-bubble admin-message">
+                        <strong>Soft Haven Support</strong><br>
+                        <small>${new Date(reply.reply_created_at).toLocaleString()}</small><br><br>
+                        ${reply.reply_text}
+                    </div>
+                `;
+            });
+
+            document.getElementById('conversation-thread').innerHTML = html;
+        }
+
+        async function sendReply() {
+            const replyText = document.getElementById('reply-text').value.trim();
+            if (!replyText) {
+                alert('Please enter a reply message');
+                return;
+            }
+
+            if (!currentMessageId) {
+                alert('No message selected');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/contact-messages/${currentMessageId}/reply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-key': ADMIN_KEY
+                    },
+                    body: JSON.stringify({ replyText })
+                });
+
+                if (response.ok) {
+                    alert('Reply sent successfully!');
+                    closeReplyModal();
+                    loadMessages(); // Refresh the messages list
+                } else {
+                    const error = await response.json();
+                    alert('Failed to send reply: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending reply:', error);
+                alert('Error sending reply');
             }
         }
 
